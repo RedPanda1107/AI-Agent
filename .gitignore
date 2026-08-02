@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.env
+backend/.env
+*.log
+coverage/
+.tsbuildinfo
+.tsbuild/
+.DS_Store
+
+# 文档目录不纳入版本控制（本地维护，发布时另行处理）
+docs/

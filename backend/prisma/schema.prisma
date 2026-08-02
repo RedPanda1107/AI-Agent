@@ -1,0 +1,118 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum WorkflowRunStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum AgentRunStatus {
+  WAITING
+  RUNNING
+  SUCCESS
+  FAILED
+}
+
+enum DocumentType {
+  PRD
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum TaskStatus {
+  BACKLOG
+  TODO
+  DOING
+  DONE
+}
+
+model Project {
+  id             String        @id @default(cuid())
+  name           String
+  description    String?
+  contextSummary String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  messages       Message[]
+  workflowRuns   WorkflowRun[]
+  documents      Document[]
+  tasks          Task[]
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  projectId String
+  role      String
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
+}
+
+model WorkflowRun {
+  id          String            @id @default(cuid())
+  projectId   String
+  status      WorkflowRunStatus @default(PENDING)
+  currentNode String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  project     Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  agentRuns   AgentRun[]
+
+  @@index([projectId, createdAt])
+}
+
+model AgentRun {
+  id            String         @id @default(cuid())
+  workflowRunId String
+  agentName     String
+  status        AgentRunStatus @default(WAITING)
+  input         Json?
+  output        Json?
+  durationMs    Int?
+  tokenUsage    Int?
+  createdAt     DateTime       @default(now())
+  workflowRun   WorkflowRun    @relation(fields: [workflowRunId], references: [id], onDelete: Cascade)
+
+  @@index([workflowRunId, createdAt])
+}
+
+model Document {
+  id        String       @id @default(cuid())
+  projectId String
+  type      DocumentType
+  content   String       @db.Text
+  version   Int          @default(1)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  project   Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, type])
+}
+
+model Task {
+  id          String       @id @default(cuid())
+  projectId   String
+  title       String
+  description String?      @db.Text
+  priority    TaskPriority @default(MEDIUM)
+  status      TaskStatus   @default(BACKLOG)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, status])
+}
