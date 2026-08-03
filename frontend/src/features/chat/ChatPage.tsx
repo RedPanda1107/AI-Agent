@@ -180,9 +180,17 @@ export function ChatPage({ projectId }: { projectId: string }) {
               </span>
             )}
             {workflowStatus === 'completed' && (
-              <span className="flex items-center gap-1.5 rounded-full bg-green-50 px-3 py-1 text-xs font-medium text-green-600">
-                ✓ 工作流完成
-              </span>
+              <>
+                <span className="flex items-center gap-1.5 rounded-full bg-green-50 px-3 py-1 text-xs font-medium text-green-600">
+                  ✓ 工作流完成
+                </span>
+                <a
+                  href={`/projects/${projectId}/workflow`}
+                  className="flex items-center gap-1.5 rounded-full bg-[#0071e3] px-3 py-1 text-xs font-medium text-white transition hover:bg-[#0077ed]"
+                >
+                  查看完整方案
+                </a>
+              </>
             )}
             {workflowStatus === 'failed' && (
               <span className="flex items-center gap-1.5 rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-red-600">

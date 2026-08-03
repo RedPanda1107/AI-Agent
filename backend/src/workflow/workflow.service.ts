@@ -142,6 +142,7 @@ export class WorkflowService implements OnModuleInit {
         where: { id: runId },
         data: { status: 'COMPLETED', currentNode: 'task' },
       });
+      await this.persistResults(runId, projectId);
       onEvent({ type: 'run.completed', runId, timestamp: new Date().toISOString() });
       this.logger.log(`Run ${runId} completed successfully`);
     } catch (err) {
@@ -191,5 +192,54 @@ export class WorkflowService implements OnModuleInit {
       }
     }
     return results;
+  }
+
+  /**
+   * Persists workflow results to Document and Task records.
+   * - Finds the 'prd' agent run and saves its output as a Document (type PRD)
+   * - Finds the 'task' agent run and creates Task records from its output.tasks array
+   */
+  async persistResults(runId: string, projectId: string) {
+    const agentRuns = await this.prisma.agentRun.findMany({
+      where: { workflowRunId: runId },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const prdRun = agentRuns.find((r) => r.agentName === 'prd');
+    const taskRun = agentRuns.find((r) => r.agentName === 'task');
+
+    const documents = [];
+    const tasks = [];
+
+    if (prdRun?.output) {
+      const doc = await this.prisma.document.create({
+        data: {
+          projectId,
+          type: 'PRD',
+          content: JSON.stringify(prdRun.output),
+        },
+      });
+      documents.push(doc);
+    }
+
+    if (taskRun?.output) {
+      const output = taskRun.output as { tasks?: Array<{ title?: string; description?: string; priority?: string }> };
+      if (output.tasks && Array.isArray(output.tasks)) {
+        for (const task of output.tasks) {
+          const created = await this.prisma.task.create({
+            data: {
+              projectId,
+              title: task.title ?? 'Untitled Task',
+              description: task.description,
+              priority: (task.priority as 'LOW' | 'MEDIUM' | 'HIGH') ?? 'MEDIUM',
+              status: 'BACKLOG',
+            },
+          });
+          tasks.push(created);
+        }
+      }
+    }
+
+    return { documents, tasks };
   }
 }

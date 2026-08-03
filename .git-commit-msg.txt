@@ -1,0 +1,15 @@
+feat(phase4): add workflow results page and persistence
+
+- Add POST /workflow/run/:runId/persist endpoint that creates Document (PRD) and Task records from workflow outputs
+- Create WorkflowPage component at /projects/:id/workflow with stepper, expandable agent result cards, and structured displays for each agent type
+- Add "查看完整方案" button to ChatPage header when workflow completes
+- Persist PRD and Task records automatically on workflow completion
+
+feat(frontend): complete workflow results display
+
+- WorkflowPage: shows 5-node horizontal stepper, expandable cards for each agent
+- PlannerView: goals, assumptions, risks, reasoning
+- ResearchView: market overview, competitor analysis, opportunities
+- ProductView: user persona, pain points, positioning, feature list with priority badges
+- PrdView: title, background, user profiles, functional requirements, page design, acceptance criteria
+- TaskView: task table with title, description, priority badge, estimate

@@ -116,4 +116,17 @@ export class WorkflowController {
   async getProjectRuns(@Param('projectId') projectId: string) {
     return this.workflow.getRunsByProject(projectId);
   }
+
+  /**
+   * POST /workflow/run/:runId/persist
+   * Persists the workflow run results into Document and Task records.
+   * Finds the 'prd' agent run output and saves it as a Document (type PRD),
+   * and finds the 'task' agent run output.tasks array to create Task records.
+   */
+  @Post('run/:runId/persist')
+  async persistResults(@Param('runId') runId: string) {
+    const run = await this.workflow.getRun(runId);
+    if (!run) return { error: 'Run not found' };
+    return this.workflow.persistResults(runId, run.projectId);
+  }
 }

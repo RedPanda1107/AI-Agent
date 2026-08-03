@@ -1,11 +1,16 @@
 import { useState } from 'react';
 import { ChatPage } from './features/chat/ChatPage';
+import { WorkflowPage } from './features/workflow/WorkflowPage';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3000';
 
 export function App() {
-  const match = window.location.pathname.match(/^\/projects\/([^/]+)\/chat$/);
-  if (match) return <ChatPage projectId={match[1]} />;
+  const workflowMatch = window.location.pathname.match(/^\/projects\/([^/]+)\/workflow$/);
+  if (workflowMatch) return <WorkflowPage projectId={workflowMatch[1]} />;
+
+  const chatMatch = window.location.pathname.match(/^\/projects\/([^/]+)\/chat$/);
+  if (chatMatch) return <ChatPage projectId={chatMatch[1]} />;
+
   return <ProjectLauncher />;
 }
 
