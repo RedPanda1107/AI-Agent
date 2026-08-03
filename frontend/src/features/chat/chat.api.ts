@@ -96,11 +96,3 @@ export async function getWorkflowResults(
   if (!response.ok) throw new Error('获取工作流结果失败');
   return response.json() as Promise<Record<string, unknown> | { error: string }>;
 }
-
-export async function getProjectWorkflowRuns(
-  projectId: string,
-): Promise<WorkflowRun[]> {
-  const response = await fetch(`${API_BASE_URL}/workflow/project/${projectId}/runs`);
-  if (!response.ok) throw new Error('获取项目工作流列表失败');
-  return response.json() as Promise<WorkflowRun[]>;
-}

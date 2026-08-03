@@ -1,7 +1,7 @@
 # 下次工作计划
 
-**创建日期：** 2026-08-03（更新版 v3）
-**前置状态：** Phase 2 ✅ Phase 3 ✅ Phase 4 ✅ 已完成
+**创建日期：** 2026-08-03（更新版 v2）
+**前置状态：** Phase 2 ✅ Phase 3 ✅ Phase 4 🔶 进行中
 
 ---
 
@@ -31,48 +31,52 @@
 
 ### Step 1：Phase 4 — 工作流可视化与结果展示
 
-#### ✅ 已完成
+#### Step 1.1：实现前端 `/projects/:id/workflow` 路由
 
-1. **前端 `/projects/:id/workflow` 路由**
-   - 支持 URL 直接访问，自动加载该项目的最新工作流
-   - 支持多版本运行记录切换（select 下拉）
+1. 在 `App.tsx` 中添加新路由
+2. 创建 `WorkflowPage.tsx` 组件，展示：
+   - 5 个节点的进度状态（pending / running / completed / failed）
+   - 每个节点的输入/输出 JSON 可折叠展示
+   - AgentRun 详情（耗时、状态）
 
-2. **ChatPage 中"查看完整方案"按钮**
-   - 工作流完成后 Header 显示绿色"查看完整方案"链接
+#### Step 1.2：在 ChatPage 中添加结果查看入口
 
-3. **前端 Agent 结果实时展示**
-   - `node.completed` 事件触发时，ChatPage 消息区显示格式化卡片
-   - Planner → 目标列表、Research → 竞品分析、Product → 功能列表（带优先级标签）
-   - PRD → 文档摘要、Task → 任务表格（带优先级和预估时间）
+1. 工作流完成后，显示"查看完整方案"按钮
+2. 点击跳转到 `/projects/:id/workflow`
 
-4. **React Flow 工作流图**
-   - 5 个节点横向排列，节点颜色根据状态变化（pending → running → completed/failed）
-   - 集成 `@xyflow/react`，动画连接线
+#### Step 1.3：前端 Agent 结果展示
 
-5. **PRD 持久化与 Task 持久化**
-   - `workflow.service.ts` 的 `persistResults()` 自动保存：
-     - PRD Agent 输出 → `Document` 记录（type: PRD）
-     - Task Agent 输出.tasks → `Task` 记录
+1. 在 `ChatPage` 中，`node.completed` 事件触发时：
+   - 在消息区域添加一个格式化卡片，显示节点输出
+   - 使用 ReactMarkdown 或自定义渲染展示结构化结果
+2. 定义各 Agent 结果的渲染模板（Planner → 目标列表，Research → 竞品分析，Product → 功能列表，PRD → 文档，Task → 任务列表）
 
 ---
 
-### 下一步：Phase 5 — 用户身份与项目列表
+### Step 2（可选）：PRD 持久化与编辑
 
-1. 添加用户认证（JWT / NextAuth）
-2. 实现 `/projects` 项目列表页面
-3. 实现 `/projects/:id` 项目详情页面
-4. 添加 Monaco Editor 集成用于 PRD 编辑
-5. 集成 pgvector 实现语义检索
+1. 工作流完成后，将 PRD Agent 的输出保存为 `Document` 记录（`DocumentType.PRD`）
+2. 将 Task Agent 的输出导入为 `Task` 记录
+3. 添加 `/projects/:id/documents/:docId` 编辑页面（Monaco Editor 集成）
+
+---
+
+### Step 3（可选）：React Flow 工作流图
+
+使用 `@xyflow/react` 实现节点状态可视化：
+- 5 个节点横向排列
+- 节点颜色根据状态变化（pending → running → completed / failed）
+- 节点完成后可点击查看输入输出详情
 
 ---
 
 ## 验收标准
 
 Phase 4 完成的验收标准：
-- [x] `/projects/:id/workflow` 页面可访问
-- [x] 工作流节点状态实时更新
-- [x] 各 Agent 输出结果可查看
-- [x] PRD 和 Task 结果保存到数据库
+- [ ] `/projects/:id/workflow` 页面可访问
+- [ ] 工作流节点状态实时更新
+- [ ] 各 Agent 输出结果可查看
+- [ ] PRD 和 Task 结果保存到数据库
 
 ---
 
