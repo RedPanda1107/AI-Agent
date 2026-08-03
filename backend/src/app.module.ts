@@ -5,6 +5,7 @@ import { ChatModule } from './chat/chat.module';
 import { LlmModule } from './llm/llm.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProjectModule } from './project/project.module';
+import { WorkflowModule } from './workflow/workflow.module';
 
 @Module({
   imports: [
@@ -12,6 +13,7 @@ import { ProjectModule } from './project/project.module';
     PrismaModule,
     LlmModule,
     ProjectModule,
+    WorkflowModule,
     ChatModule,
   ],
   controllers: [HealthController],
