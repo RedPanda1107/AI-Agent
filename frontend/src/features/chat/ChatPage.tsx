@@ -30,10 +30,61 @@ function looksLikeWorkflowIdea(content: string): boolean {
   );
 }
 
+// --- Agent output types (must match backend schema) ---
+
+interface PlannerOutput {
+  goals: string[];
+  assumptions: string[];
+  risks: string[];
+  reasoning?: string;
+}
+interface ResearchOutput {
+  marketOverview?: string;
+  competitors?: Array<{ name: string; strengths: string; weaknesses: string }>;
+  opportunities?: string[];
+  reasoning?: string;
+}
+interface ProductOutput {
+  userPersona?: string;
+  painPoints?: string[];
+  positioning?: string;
+  features?: Array<{ name: string; description: string; priority: 'HIGH' | 'MEDIUM' | 'LOW' }>;
+  userFlows?: string[];
+  reasoning?: string;
+}
+interface PrdOutput {
+  title?: string;
+  background?: string;
+  userProfiles?: string;
+  functionalRequirements?: string;
+  pageDesign?: string;
+  acceptanceCriteria?: string[];
+  reasoning?: string;
+}
+interface TaskOutput {
+  tasks?: Array<{ title: string; description?: string; priority: 'HIGH' | 'MEDIUM' | 'LOW'; estimateDays?: number }>;
+  reasoning?: string;
+}
+
+type AgentOutput = PlannerOutput | ResearchOutput | ProductOutput | PrdOutput | TaskOutput;
+
+const AGENT_OUTPUT_ICONS: Record<AgentName, string> = {
+  planner: '🎯', research: '🔍', product: '💡', prd: '📝', task: '✅',
+};
+
+const PRIORITY_COLORS: Record<string, string> = {
+  HIGH: 'bg-red-50 text-red-600 border-red-200',
+  MEDIUM: 'bg-yellow-50 text-yellow-700 border-yellow-200',
+  LOW: 'bg-gray-50 text-gray-500 border-gray-200',
+};
+
 export function ChatPage({ projectId }: { projectId: string }) {
   const [input, setInput] = useState('');
   const chatEs = useRef<EventSource | null>(null);
   const workflowEs = useRef<EventSource | null>(null);
+  const [completedNodeCards, setCompletedNodeCards] = useState<
+    Array<{ node: AgentName; output: AgentOutput; ts: number }>
+  >([]);
 
   const {
     messages,
@@ -57,6 +108,7 @@ export function ChatPage({ projectId }: { projectId: string }) {
   useEffect(() => {
     setProject(projectId);
     resetWorkflow();
+    setCompletedNodeCards([]);
     void getMessages(projectId)
       .then(setMessages)
       .catch((e: unknown) => failStream(e instanceof Error ? e.message : '无法加载消息'));
@@ -102,31 +154,34 @@ export function ChatPage({ projectId }: { projectId: string }) {
     });
 
     source.addEventListener('run.started', (e) => {
+      setCompletedNodeCards([]);
       handleWorkflowEvent(JSON.parse(e.data) as WorkflowEvent);
     });
     source.addEventListener('node.started', (e) => {
-      const event = JSON.parse(e.data) as WorkflowEvent;
-      handleWorkflowEvent(event);
+      handleWorkflowEvent(JSON.parse(e.data) as WorkflowEvent);
     });
     source.addEventListener('node.delta', (e) => {
-      const event = JSON.parse(e.data) as WorkflowEvent;
-      handleWorkflowEvent(event);
+      handleWorkflowEvent(JSON.parse(e.data) as WorkflowEvent);
     });
     source.addEventListener('node.completed', (e) => {
       const event = JSON.parse(e.data) as WorkflowEvent;
       handleWorkflowEvent(event);
+      if (event.node && event.data) {
+        setCompletedNodeCards((prev) => [
+          ...prev,
+          { node: event.node as AgentName, output: event.data as AgentOutput, ts: Date.now() },
+        ]);
+      }
     });
     source.addEventListener('node.failed', (e) => {
-      const event = JSON.parse(e.data) as WorkflowEvent;
-      handleWorkflowEvent(event);
+      handleWorkflowEvent(JSON.parse(e.data) as WorkflowEvent);
     });
     source.addEventListener('run.completed', (e) => {
-      const event = JSON.parse(e.data) as WorkflowEvent;
-      handleWorkflowEvent(event);
+      handleWorkflowEvent(JSON.parse(e.data) as WorkflowEvent);
       source.close();
     });
     source.onerror = () => {
-      console.warn('[Workflow] SSE connection error, will retry...');
+      console.warn('[Workflow] SSE connection error');
       source.close();
     };
   }
@@ -138,7 +193,7 @@ export function ChatPage({ projectId }: { projectId: string }) {
     setInput('');
 
     if (looksLikeWorkflowIdea(content)) {
-      // Trigger multi-agent workflow
+      setCompletedNodeCards([]);
       try {
         const { runId } = await startWorkflow({ projectId, idea: content });
         startWf(runId);
@@ -147,7 +202,6 @@ export function ChatPage({ projectId }: { projectId: string }) {
         failStream(e instanceof Error ? e.message : '启动工作流失败');
       }
     } else {
-      // Normal chat message
       try {
         const { userMessage, streamId } = await createMessage(projectId, content);
         addMessage(userMessage);
@@ -253,7 +307,7 @@ export function ChatPage({ projectId }: { projectId: string }) {
 
       <section className="mx-auto flex min-h-[calc(100vh-64px)] max-w-3xl flex-col px-5 sm:px-8">
         <div className="flex-1 py-9 sm:py-12">
-          {messages.length === 0 && workflowStatus === 'idle' && <EmptyState />}
+          {messages.length === 0 && workflowStatus === 'idle' && completedNodeCards.length === 0 && <EmptyState />}
           <div className="space-y-7">
             {messages.map((message) => (
               <MessageBubble
@@ -261,6 +315,11 @@ export function ChatPage({ projectId }: { projectId: string }) {
                 message={message}
                 streaming={isStreaming && message.id === useChatStore.getState().streamId}
               />
+            ))}
+
+            {/* Live agent result cards */}
+            {completedNodeCards.map((card) => (
+              <AgentCard key={`${card.node}-${card.ts}`} agentName={card.node} output={card.output} />
             ))}
           </div>
         </div>
@@ -308,6 +367,208 @@ export function ChatPage({ projectId }: { projectId: string }) {
     </main>
   );
 }
+
+// --- Agent live result card ---
+
+function AgentCard({ agentName, output }: { agentName: AgentName; output: AgentOutput }) {
+  const icon = AGENT_OUTPUT_ICONS[agentName];
+  const labels: Record<AgentName, string> = {
+    planner: '🎯 Planner 规划完成',
+    research: '🔍 Research 调研完成',
+    product: '💡 Product 产品设计完成',
+    prd: '📝 PRD 文档完成',
+    task: '✅ Task 任务拆解完成',
+  };
+
+  return (
+    <article className="overflow-hidden rounded-[20px] border border-black/[0.06] bg-white shadow-sm">
+      <div className="flex items-center gap-3 border-b border-black/[0.04] bg-gradient-to-r from-[#fafafa] to-white px-4 py-3">
+        <span className="text-base">{icon}</span>
+        <span className="text-sm font-semibold text-[#1d1d1f]">{labels[agentName]}</span>
+        <span className="ml-auto text-[10px] text-[#86868b]">刚刚</span>
+      </div>
+      <div className="px-4 py-4">
+        <AgentCardContent agentName={agentName} output={output} />
+      </div>
+    </article>
+  );
+}
+
+function AgentCardContent({ agentName, output }: { agentName: AgentName; output: AgentOutput }) {
+  switch (agentName) {
+    case 'planner': {
+      const o = output as PlannerOutput;
+      return (
+        <div className="space-y-4">
+          {o.goals?.length > 0 && (
+            <div>
+              <p className="mb-2 text-xs font-semibold text-[#86868b]">核心目标</p>
+              <ul className="space-y-1.5">
+                {o.goals.map((g, i) => (
+                  <li key={i} className="flex items-start gap-2 text-sm text-[#424245]">
+                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#0071e3]" />
+                    {g}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {o.risks?.length > 0 && (
+            <div>
+              <p className="mb-2 text-xs font-semibold text-[#86868b]">潜在风险</p>
+              <ul className="space-y-1">
+                {o.risks.map((r, i) => (
+                  <li key={i} className="flex items-start gap-2 text-sm text-[#424245]">
+                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400" />
+                    {r}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      );
+    }
+    case 'research': {
+      const o = output as ResearchOutput;
+      return (
+        <div className="space-y-4">
+          {o.marketOverview && (
+            <div>
+              <p className="mb-2 text-xs font-semibold text-[#86868b]">市场概况</p>
+              <p className="text-sm leading-relaxed text-[#424245]">{o.marketOverview.slice(0, 200)}{o.marketOverview.length > 200 ? '…' : ''}</p>
+            </div>
+          )}
+          {o.competitors?.length > 0 && (
+            <div>
+              <p className="mb-2 text-xs font-semibold text-[#86868b]">竞品分析</p>
+              <div className="flex flex-wrap gap-2">
+                {o.competitors.map((c, i) => (
+                  <div key={i} className="rounded-lg border border-black/[0.06] bg-[#f5f5f7] px-3 py-2">
+                    <p className="text-xs font-semibold text-[#1d1d1f]">{c.name}</p>
+                    <p className="mt-1 text-[11px] text-green-600">✓ {c.strengths}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+    case 'product': {
+      const o = output as ProductOutput;
+      return (
+        <div className="space-y-4">
+          {o.userPersona && (
+            <div>
+              <p className="mb-2 text-xs font-semibold text-[#86868b]">用户画像</p>
+              <p className="rounded-lg bg-[#f5f5f7] p-3 text-sm leading-relaxed text-[#424245]">{o.userPersona.slice(0, 150)}{o.userPersona.length > 150 ? '…' : ''}</p>
+            </div>
+          )}
+          {o.positioning && (
+            <div>
+              <p className="mb-2 text-xs font-semibold text-[#86868b]">产品定位</p>
+              <p className="rounded-lg bg-blue-50 p-3 text-sm leading-relaxed text-blue-700">{o.positioning}</p>
+            </div>
+          )}
+          {o.features?.length > 0 && (
+            <div>
+              <p className="mb-3 text-xs font-semibold text-[#86868b]">功能列表（{o.features.length} 项）</p>
+              <div className="space-y-2">
+                {o.features.slice(0, 4).map((f, i) => (
+                  <div key={i} className="flex items-start gap-3 rounded-lg border border-black/[0.04] bg-[#f5f5f7] p-2.5">
+                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#0071e3]/10 text-[10px] font-medium text-[#0071e3]">{i + 1}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-[#1d1d1f] truncate">{f.name}</p>
+                      <p className="mt-0.5 text-xs text-[#86868b] line-clamp-1">{f.description}</p>
+                    </div>
+                    <span className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-medium ${PRIORITY_COLORS[f.priority] ?? ''}`}>
+                      {f.priority}
+                    </span>
+                  </div>
+                ))}
+                {o.features.length > 4 && (
+                  <p className="text-xs text-[#86868b]">+ 还有 {o.features.length - 4} 项功能</p>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+    case 'prd': {
+      const o = output as PrdOutput;
+      return (
+        <div className="space-y-4">
+          {o.title && (
+            <div className="rounded-lg border-2 border-[#0071e3]/20 bg-[#0071e3]/5 p-3">
+              <p className="text-xs font-semibold text-[#0071e3]">产品名称</p>
+              <p className="text-base font-bold text-[#1d1d1f]">{o.title}</p>
+            </div>
+          )}
+          {o.background && (
+            <div>
+              <p className="mb-2 text-xs font-semibold text-[#86868b]">项目背景</p>
+              <p className="text-sm leading-relaxed text-[#424245]">{o.background.slice(0, 300)}{o.background.length > 300 ? '…' : ''}</p>
+            </div>
+          )}
+          {o.acceptanceCriteria?.length > 0 && (
+            <div>
+              <p className="mb-2 text-xs font-semibold text-[#86868b]">验收标准</p>
+              <ul className="space-y-1">
+                {o.acceptanceCriteria.slice(0, 5).map((c, i) => (
+                  <li key={i} className="flex items-start gap-2 text-sm text-[#424245]">
+                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-green-500" />
+                    {c}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      );
+    }
+    case 'task': {
+      const o = output as TaskOutput;
+      return (
+        <div className="space-y-4">
+          {o.tasks?.length > 0 && (
+            <div>
+              <p className="mb-3 text-xs font-semibold text-[#86868b]">任务拆解（{o.tasks.length} 项）</p>
+              <div className="space-y-2">
+                {o.tasks.slice(0, 6).map((task, i) => (
+                  <div key={i} className="flex items-center gap-3 rounded-lg border border-black/[0.04] bg-[#f5f5f7] p-2.5">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#0071e3]/10 text-[11px] font-bold text-[#0071e3]">{i + 1}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-[#1d1d1f] truncate">{task.title}</p>
+                      {task.estimateDays && (
+                        <p className="text-xs text-[#86868b]">预计 {task.estimateDays} 天</p>
+                      )}
+                    </div>
+                    <span className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-medium ${PRIORITY_COLORS[task.priority] ?? ''}`}>
+                      {task.priority}
+                    </span>
+                  </div>
+                ))}
+                {o.tasks.length > 6 && (
+                  <p className="text-xs text-[#86868b]">+ 还有 {o.tasks.length - 6} 项任务</p>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+    default:
+      return (
+        <pre className="overflow-x-auto rounded-lg bg-[#1d1d1f] p-3 text-xs text-[#f5f5f7]">
+          {JSON.stringify(output, null, 2)}
+        </pre>
+      );
+  }
+}
+
+// --- Existing components ---
 
 function EmptyState() {
   return (
